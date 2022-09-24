@@ -3,8 +3,26 @@
 #include "Adafruit_GFX.h"
 #include "Adafruit_ILI9341.h"     // https://github.com/adafruit/Adafruit_ILI9341
 #include "rcmonitor.h"            // https://github.com/aollin/racechrono-ble-diy-device
+#include <FastLED.h>
 
-//#define DUMMYTEST   // For testing, fetch magnetometer data instead of time and speed gain
+#define DUMMYTEST   // For testing, fetch magnetometer data instead of time and speed gain
+
+
+// How many leds are in the strip?
+#define NUM_LEDS 40
+
+uint8_t grp1[] = {0, 39, 1, 38, 2, 37, 3, 36, 4, 35, 5, 34, 6, 33, 7, 32, 8, 31, 9, 30};
+uint8_t grp2[] = {20, 19, 21, 18, 22, 17, 23, 16, 24, 15, 25, 14, 26, 13, 27, 12, 28, 11, 29, 10};
+
+// For led chips like WS2812, which have a data line, ground, and power, you just
+// need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
+// ground, and power), like the LPD8806 define both DATA_PIN and CLOCK_PIN
+// Clock pin only needed for SPI based chipsets when not using hardware SPI
+#define DATA_PIN 2
+#define CLOCK_PIN 13
+
+// This is an array of leds.  One item for each led in your strip.
+CRGB leds[NUM_LEDS];
 
 
 // ESP32 SPI: 
@@ -46,12 +64,15 @@ void bootscreensequence(void);
 
 
 void setup() {
+  FastLED.addLeds<WS2812B, DATA_PIN, RGB>(leds, NUM_LEDS);  // GRB ordering is typical
+  
   Serial.begin(115200);
   delay(200);
   Serial.println("\nBooting...");
   initscreen();
   bootscreensequence();
   rcmonitorstart();
+  
 }
 
 
@@ -63,10 +84,32 @@ void loop() {
     speedgain = (int16_t) (monitorValues[1] * monitorMultipliers[1]);
     timegainPrint(timegain);
     speedgainPrint(speedgain);
+    FastLED.clear();
+//    FastLED.show();
+    triggerleds(grp1, int(timegain));
+    triggerleds(grp2, speedgain);
   }
-  delay(900);
+  delay(10);
 }
 
+
+void triggerleds(uint8_t grp[], int gain) {
+  CRGB color;
+  int num;
+  if (gain>=0) {
+    color = CRGB::Red;
+  }
+  else {
+    color = CRGB::Green;
+  }
+  num = map(abs(gain), 0, 36, 0, 10 );
+  
+  for (int i = 0; i < num * 2; i++) {
+    leds[grp[i]] = color;
+    leds[grp[++i]] = color;
+  }
+  FastLED.show();
+}
 
 void timegainPrint(float gain) {
     static uint16_t txcolor;
